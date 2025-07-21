@@ -1,0 +1,29 @@
+[project]
+name = "luka-robot-code"
+version = "0.1.0"
+description = "Luka's Unitree robot control code"
+authors = [
+    {name = "Luka", email = "luka@example.com"}
+]
+dependencies = [
+    "cyclonedds==0.10.2",
+    "numpy",
+    "opencv-python",
+]
+requires-python = ">=3.8"
+
+# Note: unitree_sdk2py must be installed manually:
+# 1. git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
+# 2. cd unitree_sdk2_python 
+# 3. pip install -e .
+# Make sure CYCLONEDDS_HOME environment variable is set first
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "isort",
+]
+
+[project.scripts]
+test-dds = "test_dds:main" 
