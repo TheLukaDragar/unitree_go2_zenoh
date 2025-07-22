@@ -45,7 +45,7 @@ This script will:
 
 ### Development Machine Setup
 ```bash
-./setup_dev_machine.sh --robot-ip <robot_ip>
+./setup_dev_machine.sh <robot_ip>
 ```
 This script will:
 - Download zenoh-bridge-dds for your platform (macOS/Linux)
