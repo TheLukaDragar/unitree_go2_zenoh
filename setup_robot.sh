@@ -7,7 +7,7 @@
 set -euo pipefail  # Exit on error, undefined variables, and pipe failures
 
 # Configuration
-readonly ZENOH_VERSION="1.4.0"
+readonly ZENOH_VERSION="1.5.0"
 readonly ZENOH_DIR="/unitree/zenoh"
 readonly SERVICE_NAME="zenoh-bridge-dds"
 readonly SERVICE_USER="root"
@@ -44,13 +44,13 @@ trap cleanup EXIT
 # Validation functions
 check_requirements() {
     log_info "Checking system requirements..."
-    
+
     # Check if running as root or with sudo
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root or with sudo"
         exit 1
     fi
-    
+
     # Check for required commands
     local required_commands=("unzip" "systemctl" "curl")
     for cmd in "${required_commands[@]}"; do
@@ -59,59 +59,59 @@ check_requirements() {
             exit 1
         fi
     done
-    
+
     # Check for download tools
     if ! command -v wget >/dev/null 2>&1 && ! command -v curl >/dev/null 2>&1; then
         log_error "Neither wget nor curl found. Please install one of them."
         exit 1
     fi
-    
+
     log_info "System requirements check passed"
 }
 
 get_local_ip() {
     log_info "Detecting local IP address..."
-    
+
     local ip
     ip=$(hostname -I | awk '{print $1}')
-    
+
     if [[ -z "$ip" ]]; then
         log_error "Failed to detect local IP address"
         exit 1
     fi
-    
+
     # Validate IP format
     if [[ ! $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         log_error "Invalid IP address format: $ip"
         exit 1
     fi
-    
+
     log_info "Robot local IP: $ip"
     echo "$ip"
 }
 
 create_zenoh_directory() {
     log_info "Creating zenoh directory structure..."
-    
+
     if [[ ! -d "$ZENOH_DIR" ]]; then
         mkdir -p "$ZENOH_DIR"
         log_info "Created directory: $ZENOH_DIR"
     else
         log_info "Directory already exists: $ZENOH_DIR"
     fi
-    
+
     cd "$ZENOH_DIR"
 }
 
 download_zenoh_bridge() {
     log_info "Downloading zenoh-bridge-dds version $ZENOH_VERSION for ARM64..."
-    
-    local zip_file="zenoh-bridge-dds-${ZENOH_VERSION}-aarch64-unknown-linux-gnu.zip"
-    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/aarch64-unknown-linux-gnu/${zip_file}"
-    
+
+    local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-aarch64-unknown-linux-gnu-standalone.zip"
+    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/${ZENOH_VERSION}/${zip_file}"
+
     # Remove existing file if present
     [[ -f "$zip_file" ]] && rm -f "$zip_file"
-    
+
     # Download with fallback to curl if wget fails
     if command -v wget >/dev/null 2>&1; then
         if ! wget -q --show-progress "$download_url"; then
@@ -124,44 +124,44 @@ download_zenoh_bridge() {
             exit 1
         fi
     fi
-    
+
     # Verify download
     if [[ ! -f "$zip_file" ]] || [[ ! -s "$zip_file" ]]; then
         log_error "Download verification failed"
         exit 1
     fi
-    
+
     log_info "Download completed successfully"
 }
 
 install_zenoh_bridge() {
     log_info "Installing zenoh-bridge-dds..."
-    
-    local zip_file="zenoh-bridge-dds-${ZENOH_VERSION}-aarch64-unknown-linux-gnu.zip"
-    
+
+    local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-aarch64-unknown-linux-gnu-standalone.zip"
+
     # Extract
     if ! unzip -oq "$zip_file"; then
         log_error "Failed to extract $zip_file"
         exit 1
     fi
-    
+
     # Set permissions
     chmod +x zenoh-bridge-dds
-    
+
     # Create symlink
     ln -sf "$ZENOH_DIR/zenoh-bridge-dds" /usr/local/bin/zenoh-bridge-dds
-    
+
     # Cleanup
     rm -f "$zip_file"
-    
+
     log_info "Installation completed"
 }
 
 create_configuration() {
     local robot_ip="$1"
-    
+
     log_info "Creating configuration file..."
-    
+
     cat > "$ZENOH_DIR/config.json5" << EOF
 {
   "mode": "peer",
@@ -185,13 +185,13 @@ create_configuration() {
   }
 }
 EOF
-    
+
     log_info "Configuration file created at $ZENOH_DIR/config.json5"
 }
 
 create_systemd_service() {
     log_info "Creating systemd service..."
-    
+
     cat > "/etc/systemd/system/${SERVICE_NAME}.service" << EOF
 [Unit]
 Description=Zenoh DDS Bridge for Go2 Robot
@@ -229,15 +229,15 @@ ReadWritePaths=${ZENOH_DIR}
 [Install]
 WantedBy=multi-user.target
 EOF
-    
+
     log_info "Systemd service created"
 }
 
 create_test_script() {
     local robot_ip="$1"
-    
+
     log_info "Creating test script..."
-    
+
     cat > "$ZENOH_DIR/test_bridge.sh" << 'EOF'
 #!/bin/bash
 
@@ -296,10 +296,10 @@ test_dds_routes() {
 main() {
     log_info "Testing zenoh bridge on Go2 robot..."
     echo
-    
+
     local test_passed=0
     local test_failed=0
-    
+
     # Run tests
     for test_func in test_service_status test_rest_api test_network_listening test_dds_routes; do
         echo "----------------------------------------"
@@ -310,11 +310,11 @@ main() {
         fi
         echo
     done
-    
+
     # Summary
     echo "========================================"
     log_info "Test Summary: $test_passed passed, $test_failed failed"
-    
+
     if [[ $test_failed -eq 0 ]]; then
         log_info "All tests passed! Bridge is working correctly."
         exit 0
@@ -326,26 +326,26 @@ main() {
 
 main "$@"
 EOF
-    
+
     chmod +x "$ZENOH_DIR/test_bridge.sh"
     log_info "Test script created at $ZENOH_DIR/test_bridge.sh"
 }
 
 setup_service() {
     log_info "Setting up systemd service..."
-    
+
     # Reload systemd
     systemctl daemon-reload
-    
+
     # Enable service
     systemctl enable "$SERVICE_NAME"
-    
+
     log_info "Service enabled for auto-start on boot"
 }
 
 print_summary() {
     local robot_ip="$1"
-    
+
     cat << EOF
 
 ========================================
@@ -391,14 +391,14 @@ EOF
 
 main() {
     log_info "Starting zenoh-bridge-dds setup for Go2 robot..."
-    
+
     # Validate environment
     check_requirements
-    
+
     # Get robot IP
     local robot_ip
     robot_ip=$(get_local_ip)
-    
+
     # Setup process
     create_zenoh_directory
     download_zenoh_bridge
@@ -407,10 +407,10 @@ main() {
     create_systemd_service
     create_test_script "$robot_ip"
     setup_service
-    
+
     log_info "Setup completed successfully"
     print_summary "$robot_ip"
 }
 
 # Execute main function
-main "$@" 
+main "$@"
