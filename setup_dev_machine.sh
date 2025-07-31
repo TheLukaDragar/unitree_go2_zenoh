@@ -125,7 +125,7 @@ parse_arguments() {
 
 check_requirements() {
     log_info "Checking system requirements..."
-    
+
     # Check for required commands
     local required_commands=("unzip")
     for cmd in "${required_commands[@]}"; do
@@ -134,7 +134,7 @@ check_requirements() {
             exit 1
         fi
     done
-    
+
     # Check for download tools
     if ! command -v wget >/dev/null 2>&1 && ! command -v curl >/dev/null 2>&1; then
         log_error "Neither wget nor curl found. Please install one of them."
@@ -143,16 +143,16 @@ check_requirements() {
         fi
         exit 1
     fi
-    
+
     log_info "System requirements check passed"
 }
 
 detect_platform() {
     log_info "Detecting platform..."
-    
+
     local platform=""
     local arch=""
-    
+
     case "$OSTYPE" in
         darwin*)
             platform="apple-darwin"
@@ -175,16 +175,16 @@ detect_platform() {
             exit 1
             ;;
     esac
-    
+
     PLATFORM_TARGET="${arch}-${platform}"
     log_info "Detected platform: $PLATFORM_TARGET"
 }
 
 get_local_ip() {
     log_info "Detecting local IP address..."
-    
+
     local local_ip=""
-    
+
     if [[ "$USE_TAILSCALE" == "true" ]]; then
         if command -v tailscale >/dev/null 2>&1; then
             local_ip=$(tailscale ip -4 2>/dev/null || echo "")
@@ -200,7 +200,7 @@ get_local_ip() {
             USE_TAILSCALE=false
         fi
     fi
-    
+
     if [[ -z "$local_ip" ]]; then
         if [[ "$OSTYPE" == "darwin"* ]]; then
             local_ip=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
@@ -208,38 +208,38 @@ get_local_ip() {
             local_ip=$(hostname -I | awk '{print $1}')
         fi
     fi
-    
+
     if [[ -z "$local_ip" ]]; then
         log_error "Failed to detect local IP address"
         exit 1
     fi
-    
+
     # Validate IP format
     if [[ ! $local_ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         log_error "Invalid IP address format: $local_ip"
         exit 1
     fi
-    
+
     log_info "Development machine IP: $local_ip"
     echo "$local_ip"
 }
 
 create_zenoh_directory() {
     log_info "Creating zenoh directory structure..."
-    
+
     if [[ ! -d "$ZENOH_DIR" ]]; then
         mkdir -p "$ZENOH_DIR"
         log_info "Created directory: $ZENOH_DIR"
     else
         log_info "Directory already exists: $ZENOH_DIR"
     fi
-    
+
     cd "$ZENOH_DIR"
 }
 
 check_existing_installation() {
     log_info "Checking for existing installation..."
-    
+
     if [[ -f "$ZENOH_DIR/zenoh-bridge-dds" ]]; then
         if [[ "$FORCE_INSTALL" == "true" ]]; then
             log_warn "Existing installation found, but --force specified. Will reinstall."
@@ -250,21 +250,21 @@ check_existing_installation() {
             return 0
         fi
     fi
-    
+
     return 1
 }
 
 download_zenoh_bridge() {
     log_info "Downloading zenoh-bridge-dds version $ZENOH_VERSION for $PLATFORM_TARGET..."
     
-    local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}-standalone.zip"
-    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/${zip_file}"
+    local zip_file="zenoh-bridge-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}.zip"
+    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/${PLATFORM_TARGET}/${zip_file}"
     
     # Remove existing file if present
     [[ -f "$zip_file" ]] && rm -f "$zip_file"
-    
+
     log_info "Download URL: $download_url"
-    
+
     # Download with fallback to curl if wget fails
     if command -v wget >/dev/null 2>&1; then
         if ! wget -q --show-progress "$download_url"; then
@@ -277,42 +277,41 @@ download_zenoh_bridge() {
             exit 1
         fi
     fi
-    
+
     # Verify download
-    if [[ ! -f "$zip_file" ]] || [[ ! -s "$zip_file" ]]; then
         log_error "Download verification failed"
+    if [[ ! -f "$zip_file" ]] || [[ ! -s "$zip_file" ]]; then
         exit 1
     fi
-    
+
     log_info "Download completed successfully"
 }
 
 install_zenoh_bridge() {
     log_info "Installing zenoh-bridge-dds..."
-    
+
     local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}-standalone.zip"
-    
     # Extract
     if ! unzip -oq "$zip_file"; then
         log_error "Failed to extract $zip_file"
         exit 1
     fi
-    
+
     # Set permissions
     chmod +x zenoh-bridge-dds
-    
+
     # Cleanup
     rm -f "$zip_file"
-    
+
     log_info "Installation completed"
 }
 
 create_configuration() {
     local robot_ip="$1"
     local dev_ip="$2"
-    
+
     log_info "Creating configuration file..."
-    
+
     cat > "$ZENOH_DIR/config.json5" << EOF
 {
   "mode": "peer",
@@ -338,7 +337,7 @@ create_configuration() {
   }
 }
 EOF
-    
+
     log_info "Configuration file created at $ZENOH_DIR/config.json5"
 }
 
@@ -347,7 +346,7 @@ create_start_script() {
     local dev_ip="$2"
     
     log_info "Creating start script..."
-    
+
     cat > "$ZENOH_DIR/start_bridge.sh" << EOF
 #!/bin/bash
 
@@ -369,14 +368,14 @@ echo ""
   --scope $DDS_SCOPE \\
   --rest-http-port $REST_PORT
 EOF
-    
+
     chmod +x "$ZENOH_DIR/start_bridge.sh"
     log_info "Start script created at $ZENOH_DIR/start_bridge.sh"
 }
 
 create_test_script() {
     log_info "Creating test script..."
-    
+
     cat > "$ZENOH_DIR/test_connection.sh" << 'EOF'
 #!/bin/bash
 
@@ -422,7 +421,7 @@ test_active_routes() {
 test_robot_topics() {
     log_info "Checking robot-specific topics..."
     local topics=("rt/lowstate" "rt/sportmodestate" "rt/servicestate")
-    
+
     for topic in "${topics[@]}"; do
         local route
         if route=$(curl -s --max-time 5 "http://localhost:${REST_PORT}/@/*/dds/route/**/${topic}" 2>/dev/null); then
@@ -441,10 +440,10 @@ main() {
     log_info "Testing zenoh bridge connection..."
     echo "=========================================="
     echo
-    
+
     local test_passed=0
     local test_failed=0
-    
+
     # Run tests
     for test_func in test_bridge_status test_active_routes test_robot_topics; do
         echo "----------------------------------------"
@@ -455,11 +454,11 @@ main() {
         fi
         echo
     done
-    
+
     # Summary
     echo "=========================================="
     log_info "Test Summary: $test_passed passed, $test_failed failed"
-    
+
     if [[ $test_failed -eq 0 ]]; then
         log_info "All tests passed! Bridge is working correctly."
         echo
@@ -479,14 +478,14 @@ main() {
 
 main "$@"
 EOF
-    
+
     chmod +x "$ZENOH_DIR/test_connection.sh"
     log_info "Test script created at $ZENOH_DIR/test_connection.sh"
 }
 
 run_tests() {
     log_info "Running connection tests..."
-    
+
     if [[ -f "$ZENOH_DIR/test_connection.sh" ]]; then
         "$ZENOH_DIR/test_connection.sh"
     else
@@ -498,7 +497,7 @@ run_tests() {
 print_summary() {
     local robot_ip="$1"
     local dev_ip="$2"
-    
+
     cat << EOF
 
 ========================================
@@ -543,18 +542,18 @@ EOF
 
 main() {
     log_info "Starting zenoh-bridge-dds setup for development machine..."
-    
+
     # Parse arguments
     parse_arguments "$@"
-    
+
     # Validate environment
     check_requirements
     detect_platform
-    
+
     # Get local IP
     local dev_ip
     dev_ip=$(get_local_ip)
-    
+
     if [[ "$TEST_ONLY" == "true" ]]; then
         log_info "Test mode - running connection tests..."
         if [[ -d "$ZENOH_DIR" ]]; then
@@ -566,14 +565,14 @@ main() {
         fi
         exit 0
     fi
-    
+
     # Check existing installation
     if check_existing_installation; then
         log_info "Installation already exists and appears to be working"
         print_summary "$ROBOT_IP" "$dev_ip"
         exit 0
     fi
-    
+
     # Setup process
     create_zenoh_directory
     download_zenoh_bridge
@@ -581,10 +580,10 @@ main() {
     create_configuration "$ROBOT_IP" "$dev_ip"
     create_start_script "$ROBOT_IP" "$dev_ip"
     create_test_script
-    
+
     log_success "Setup completed successfully"
     print_summary "$ROBOT_IP" "$dev_ip"
 }
 
 # Execute main function
-main "$@" 
+main "$@"
