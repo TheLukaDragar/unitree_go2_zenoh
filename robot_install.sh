@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # Configuration
-readonly ZENOH_VERSION="1.4.0"
+readonly ZENOH_VERSION="1.5.0"
 readonly ZENOH_DIR="/unitree/zenoh"
 readonly SERVICE_NAME="zenoh-bridge-dds"
 readonly LISTEN_PORT="7447"

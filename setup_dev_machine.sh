@@ -7,7 +7,7 @@
 set -euo pipefail  # Exit on error, undefined variables, and pipe failures
 
 # Configuration
-readonly ZENOH_VERSION="1.4.0"
+readonly ZENOH_VERSION="1.5.0"
 readonly ZENOH_DIR="$HOME/zenoh"
 readonly LISTEN_PORT="7447"
 readonly REST_PORT="8001"
@@ -257,8 +257,8 @@ check_existing_installation() {
 download_zenoh_bridge() {
     log_info "Downloading zenoh-bridge-dds version $ZENOH_VERSION for $PLATFORM_TARGET..."
     
-    local zip_file="zenoh-bridge-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}.zip"
-    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/${PLATFORM_TARGET}/${zip_file}"
+    local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}-standalone.zip"
+    local download_url="https://download.eclipse.org/zenoh/zenoh-plugin-dds/latest/${zip_file}"
     
     # Remove existing file if present
     [[ -f "$zip_file" ]] && rm -f "$zip_file"
@@ -290,7 +290,7 @@ download_zenoh_bridge() {
 install_zenoh_bridge() {
     log_info "Installing zenoh-bridge-dds..."
     
-    local zip_file="zenoh-bridge-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}.zip"
+    local zip_file="zenoh-plugin-dds-${ZENOH_VERSION}-${PLATFORM_TARGET}-standalone.zip"
     
     # Extract
     if ! unzip -oq "$zip_file"; then
@@ -344,6 +344,7 @@ EOF
 
 create_start_script() {
     local robot_ip="$1"
+    local dev_ip="$2"
     
     log_info "Creating start script..."
     
@@ -351,7 +352,7 @@ create_start_script() {
 #!/bin/bash
 
 echo "🚀 Starting zenoh-bridge-dds on development machine..."
-echo "🔗 Connecting to Go2 robot at: $robot_ip:$LISTEN_PORT"
+echo "🔗 Connecting to Go2 robot at: tcp://$robot_ip:$LISTEN_PORT"
 echo "🌐 REST API will be available at: http://localhost:$REST_PORT"
 echo "📋 Using DDS scope: $DDS_SCOPE (matches robot)"
 echo ""
@@ -362,6 +363,7 @@ echo ""
 "\$(dirname "\$0")/zenoh-bridge-dds" \\
   --mode peer \\
   --connect tcp/$robot_ip:$LISTEN_PORT \\
+  --listen tcp/$dev_ip:$LISTEN_PORT \\
   --listen tcp/127.0.0.1:$LISTEN_PORT \\
   --domain $DDS_DOMAIN \\
   --scope $DDS_SCOPE \\
@@ -577,7 +579,7 @@ main() {
     download_zenoh_bridge
     install_zenoh_bridge
     create_configuration "$ROBOT_IP" "$dev_ip"
-    create_start_script "$ROBOT_IP"
+    create_start_script "$ROBOT_IP" "$dev_ip"
     create_test_script
     
     log_success "Setup completed successfully"
